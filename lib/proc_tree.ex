@@ -17,11 +17,25 @@ defmodule ProcTree do
       rankdir=LR;
     """)
 
-    Enum.map(procs, fn proc ->
-      IO.puts(device, "  #{proc.pid} [width=3 label=\"#{proc.registered_name}\", shape=box];")
+    Enum.each(procs, &IO.puts(device, "  #{pid_to_nodename(&1.pid)} [width=3 label=\"#{&1.registered_name}\", shape=box];"))
 
-      IO.puts(device, "  #{proc.group_leader} -- #{proc.pid};")
-    end)
+    edges =
+      Enum.reduce(procs, [], fn proc, acc ->
+        Enum.reduce(proc.links, acc, fn link, edges ->
+          edge =
+            [link, proc.pid]
+            |> Enum.sort()
+
+          [edge | edges]
+        end)
+      end)
+
+    edges
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.each(fn edge ->
+        IO.puts device, "  #{edge |> Enum.map(&pid_to_nodename/1) |> Enum.join(" -- ")};"
+      end)
 
     IO.puts(device, "}")
   end
@@ -36,10 +50,10 @@ defmodule ProcTree do
     info = Process.info(pid)
     registered_name = info[:registered_name] || pid_to_string(pid)
     group_leader = pid_to_nodename(info[:group_leader])
-    links = info[:links] |> Enum.filter(&is_pid/1) |> Enum.map(&pid_to_nodename/1)
+    links = info[:links] |> Enum.filter(&is_pid/1)
 
     %{
-      pid: pid_to_nodename(pid),
+      pid: pid,
       registered_name: registered_name,
       group_leader: group_leader,
       links: links
@@ -55,7 +69,7 @@ defmodule ProcTree do
   defp pid_to_nodename(pid) when is_pid(pid) do
     pid
     |> pid_to_string()
-    |> String.replace("<", "id_")
+    |> String.replace("<", "pid_")
     |> String.replace(~w(. >), "_")
   end
 end
